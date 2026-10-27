@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#102b24"><meta name="description" content="Lá Play — không gian nghe âm thanh của bạn.">
+  <title>Lá Play — Chỉ âm thanh. Trọn nhịp của bạn.</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon-192.png"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true"><defs>
+    <symbol id="leaf" viewBox="0 0 24 24"><path d="M20 3C9 2 3 6 4 13c1 8 14 10 16-10Z"/><path d="M5 20 16 8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10h-7v-7h-4v7H3Z"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="heart" viewBox="0 0 24 24"><path d="M20 5c-3-3-7-1-8 1-1-2-5-4-8-1-5 5 3 11 8 15 5-4 13-10 8-15Z"/></symbol>
+    <symbol id="queue" viewBox="0 0 24 24"><path d="M3 5h15M3 10h15M3 15h9m6-2v9m-4-4h8"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 3"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path d="m9 5 11 7L9 19Z"/></symbol>
+    <symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="next" viewBox="0 0 24 24"><path d="m4 5 11 7-11 7ZM19 5v14"/></symbol>
+    <symbol id="prev" viewBox="0 0 24 24"><path d="m20 5-11 7 11 7ZM5 5v14"/></symbol>
+    <symbol id="repeat" viewBox="0 0 24 24"><path d="m18 2 4 4-4 4M2 11V9a3 3 0 0 1 3-3h16M6 22l-4-4 4-4m16-1v2a3 3 0 0 1-3 3H3"/></symbol>
+    <symbol id="volume" viewBox="0 0 24 24"><path d="M3 9h4l5-5v16l-5-5H3Zm13-2a7 7 0 0 1 0 10m3-13a11 11 0 0 1 0 16"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="music" viewBox="0 0 24 24"><path d="M10 17V5l10-2v12M10 7l10-2"/><ellipse cx="6" cy="18" rx="4" ry="3"/><ellipse cx="16" cy="16" rx="4" ry="3"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="headphones" viewBox="0 0 24 24"><path d="M3 15v-3a9 9 0 0 1 18 0v3M3 13h4v8H3Zm14 0h4v8h-4Z"/></symbol>
+  </defs></svg>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Lá Play trang chủ"><span class="brand-icon"><svg><use href="#leaf"/></svg></span>lá<span>play</span><sup>LOCAL</sup></a>
+    <div class="nav-label">KHÔNG GIAN CỦA BẠN</div>
+    <nav class="navigation" aria-label="Điều hướng chính">
+      <button class="nav-item active" data-view="home" aria-label="Khám phá"><svg><use href="#home"/></svg><span>Khám phá</span></button>
+      <button class="nav-item" data-view="queue" aria-label="Hàng đợi"><svg><use href="#queue"/></svg><span>Hàng đợi</span><b id="queueCount">0</b></button>
+      <button class="nav-item" data-view="saved" aria-label="Đã lưu"><svg><use href="#heart"/></svg><span>Đã lưu</span><b id="savedCount">0</b></button>
+      <button class="nav-item" data-view="history" aria-label="Nghe gần đây"><svg><use href="#clock"/></svg><span>Nghe gần đây</span></button>
+    </nav>
+    <div class="sidebar-note"><span class="tiny-leaf">✳</span><strong>Ít dữ liệu hơn.<br>Nhiều khoảng riêng hơn.</strong><p>Ảnh bìa cho từng bài.<br>Âm thanh MP3, không tải video.</p><span class="note-line"></span><small>Bản thử cá nhân · v0.3</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <form id="searchForm" class="search-form" role="search"><svg><use href="#search"/></svg><input id="query" aria-label="Tìm kiếm âm thanh hoặc dán link YouTube" placeholder="Tên bài, podcast hoặc link YouTube…" autocomplete="off" maxlength="180"><button type="submit" id="searchSubmit">Tìm kiếm <span>↵</span></button></form>
+      <span class="local-badge"><i></i><span id="connectionLabel">Trên máy bạn</span></span>
+    </header>
+    <main id="main">
+      <section class="hero" id="hero"><div class="hero-copy"><div class="eyebrow"><span></span> MỘT KHOẢNG RIÊNG ĐỂ NGHE</div><h1>Chỉ âm thanh.<br>Trọn nhịp của bạn.</h1><p>Gác phần hình sang một bên.<br>Giữ lại những điều bạn muốn nghe.</p><button class="primary" id="heroPlay"><svg><use href="#play"/></svg>Nghe thử một chút</button><small>Hòa âm mẫu tự tạo · 32 giây</small></div><div class="hero-art" aria-hidden="true"><div class="orbit o1"></div><div class="orbit o2"></div><div class="record"><div class="record-core"><svg><use href="#leaf"/></svg></div></div><div class="floating-label"><span class="equalizer"><i></i><i></i><i></i><i></i></span> Âm thanh là đủ</div><div class="spark s1">✳</div><div class="spark s2">✦</div></div></section>
+      <div class="content-layout"><section class="library"><div class="section-heading"><div><span class="overline" id="sectionKicker">DÀNH CHO HÔM NAY</span><h2 id="sectionTitle">Chọn một nhịp của bạn</h2></div><span class="result-count" id="resultCount"></span></div>
+        <div class="filters" id="filters"><button class="chip active" data-category="all">Tất cả</button><button class="chip" data-category="Tập trung">Tập trung</button><button class="chip" data-category="Thư giãn">Thư giãn</button><button class="chip" data-category="Buổi tối">Buổi tối</button></div>
+        <p id="searchMessage" role="status" class="search-message" hidden></p><div id="tracks" class="track-grid"></div>
+        <div class="source-note" id="sourceNote"><svg><use href="#headphones"/></svg><div><strong>Những bản nghe mẫu của Lá Play</strong><p>Âm thanh tổng hợp tự tạo để bạn thử trình phát. Tìm kiếm ở trên để nghe từ YouTube.</p></div></div>
+        <section class="recommendation-section" id="recommendationSection" hidden><div class="recommendation-heading"><h3>Gợi ý nghe tiếp</h3><button id="autoplaySuggestions" class="autoplay-switch on" role="switch" aria-checked="true" aria-label="Tự động phát gợi ý">Tự động <span></span></button></div><p id="recommendationNote">Gợi ý dựa trên tên bài và kênh.</p><div class="track-grid" id="recommendationTracks"></div></section>
+      </section><aside class="up-next"><div class="up-next-heading"><h3>Tiếp theo</h3><span id="nextCount">0 bài</span></div><div id="queuePreview"></div><button class="text-button" id="openQueue">Mở hàng đợi <svg><use href="#arrow"/></svg></button><div class="quiet-note"><span>✧</span><p>Một bài hay.<br>Một việc đang làm.<br>Vậy là đủ.</p></div></aside></div>
+    </main>
+    <footer class="page-footer"><span>lá play</span><p>Không gian nghe của riêng bạn.</p><span>CHỈ ÂM THANH</span></footer>
+  </div>
+  <footer class="player" aria-label="Trình phát âm thanh">
+    <div class="now-playing"><div class="mini-cover mint" id="miniCover"><svg><use href="#music"/></svg></div><div class="now-copy"><strong id="nowTitle">Chọn điều bạn muốn nghe</strong><span id="nowChannel">Lá Play · Chỉ phát âm thanh</span><small id="playStatus" role="status"></small></div><button class="icon-button" id="saveCurrent" aria-label="Lưu bài đang phát" disabled><svg><use href="#heart"/></svg></button></div>
+    <div class="transport"><div class="transport-buttons"><button class="icon-button" id="repeatButton" aria-label="Lặp lại một bài" aria-pressed="false"><svg><use href="#repeat"/></svg></button><button class="icon-button" id="prevButton" aria-label="Bài trước"><svg><use href="#prev"/></svg></button><button class="play-button" id="playButton" aria-label="Phát"><svg><use href="#play"/></svg></button><button class="icon-button" id="nextButton" aria-label="Bài tiếp theo"><svg><use href="#next"/></svg></button><button class="speed-button" id="speedButton" aria-label="Đổi tốc độ phát">1×</button></div><div class="timeline"><time id="elapsed">0:00</time><input id="seek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Tua âm thanh" disabled><time id="duration">0:00</time></div></div>
+    <div class="player-options"><svg class="volume-icon"><use href="#volume"/></svg><input id="volume" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="Âm lượng"><button class="icon-button" id="sleepButton" aria-label="Hẹn giờ dừng"><svg><use href="#clock"/></svg><small id="sleepLabel"></small></button></div>
+  </footer>
+  <dialog id="sleepDialog"><form method="dialog"><div class="dialog-heading"><h2>Nghe thêm một chút?</h2><button class="icon-button" aria-label="Đóng"><svg><use href="#close"/></svg></button></div><p>Tự dừng âm thanh khi hết thời gian.</p><div class="sleep-options"><button value="15">15 phút</button><button value="30">30 phút</button><button value="60">60 phút</button><button value="0">Tắt hẹn giờ</button></div></form></dialog>
+  <div class="toast" id="toast" role="status"></div><audio id="audio" preload="metadata"></audio>
+  <script src="/app.js" type="module"></script>
+</body></html>
