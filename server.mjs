@@ -8,6 +8,8 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { isIPv4 } from 'node:net';
 import { serveGrowingMP3 } from './stream-growing.mjs';
 import { createCloudAudio } from './cloud-audio.mjs';
+import { createRemoteBackend } from './remote-backend.mjs';
+import { timingSafeEqual } from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, 'dist');
@@ -25,7 +27,9 @@ let config = {};
 try { config = JSON.parse(readFileSync(path.join(ROOT, '.runtime', 'config.json'), 'utf8').replace(/^\uFEFF/, '')); } catch {}
 config = { ...config, python: process.env.LA_PYTHON || config.python, pythonPath: process.env.LA_PYTHONPATH || config.pythonPath, ffmpeg: process.env.LA_FFMPEG || config.ffmpeg };
 const cloudAudio = createCloudAudio(config);
-const toolReady = () => !!config.python && !!config.ffmpeg && existsSync(config.ffmpeg);
+const remoteBackend = process.env.LA_REMOTE_URL && process.env.LA_REMOTE_KEY ? createRemoteBackend({ baseURL: process.env.LA_REMOTE_URL, key: process.env.LA_REMOTE_KEY }) : null;
+const sourceReady = () => !!config.python && existsSync(config.python);
+const toolReady = () => sourceReady() && !!config.ffmpeg && existsSync(config.ffmpeg);
 const env = () => ({ ...process.env, PYTHONPATH: config.pythonPath || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' });
 const baseArgs = () => ['-m', 'yt_dlp', '--ignore-config', '--no-plugin-dirs', '--no-remote-components', '--no-cache-dir', '--no-warnings', '--socket-timeout', '12', '--retries', '1', '--extractor-retries', '1', '--js-runtimes', `node:${process.execPath}`];
 const sourceURL = id => `https://www.youtube.com/watch?v=${id}`;
@@ -76,11 +80,11 @@ async function body(req) {
 }
 
 function requireTools() {
-  if (!toolReady()) throw error('Cần chạy bước thiết lập âm thanh trước. Các bài nghe mẫu vẫn dùng được.', 503, 'SETUP_REQUIRED');
+  if (!toolReady()) throw error('Máy chủ chưa có đủ công cụ chuyển âm thanh MP3.', 503, 'SETUP_REQUIRED');
 }
 
 function runJSON(args, timeout = 45000) {
-  requireTools();
+  if (!sourceReady()) throw error('Máy chủ chưa có công cụ tìm nguồn YouTube.', 503, 'SETUP_REQUIRED');
   return new Promise((resolve, reject) => {
     const child = spawn(config.python, [...baseArgs(), ...args], { env: env(), windowsHide: true, shell: false });
     running.add(child); let output = '', diagnostic = '', settled = false;
@@ -234,6 +238,11 @@ export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } 
   const publicHosts = new Set((process.env.LA_PUBLIC_HOSTS || '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean));
   return http.createServer(async (req, res) => {
     try {
+      if (process.env.LA_BACKEND_KEY) {
+        const supplied = req.headers['x-la-backend-key'];
+        const expected = Buffer.from(process.env.LA_BACKEND_KEY);
+        if (typeof supplied !== 'string' || Buffer.byteLength(supplied) !== expected.length || !timingSafeEqual(Buffer.from(supplied), expected)) throw error('Không có quyền truy cập backend.', 401, 'BACKEND_AUTH');
+      }
       const host = req.headers.host || '';
       let hostname;
       try { hostname = new URL(`http://${host}`).hostname; } catch {}
@@ -242,7 +251,8 @@ export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } 
       } else if (!allowedHosts.has(hostname) || !isAllowedClient(req.socket.remoteAddress, lanAddress, lanPrefix)) throw error('Bản thử chỉ phục vụ trên máy này hoặc mạng LAN đã chọn.', 403, 'LOCAL_ONLY');
       if (req.headers.origin && req.headers.origin !== `${vercel ? 'https' : 'http'}://${host}`) throw error('Yêu cầu không cùng nguồn.', 403, 'ORIGIN_REJECTED');
       const url = new URL(req.url, `http://${host}`), p = url.pathname;
-      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: CLOUD_AUDIO ? cloudAudio.ready() : toolReady(), searchReady: toolReady(), audioOnly: true, format: 'mp3', localOnly: !vercel && !lanAddress, lanEnabled: !!lanAddress, deployment: vercel ? 'vercel' : 'local', playback: CLOUD_AUDIO ? 'shared-mp3' : 'local-progressive' });
+      if (remoteBackend && await remoteBackend.handle(req, res)) return;
+      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: CLOUD_AUDIO ? cloudAudio.ready() : toolReady(), searchReady: sourceReady(), audioOnly: true, format: 'mp3', localOnly: !vercel && !lanAddress, lanEnabled: !!lanAddress, deployment: vercel ? 'vercel' : 'local', playback: CLOUD_AUDIO ? 'shared-mp3' : 'local-progressive' });
       if (req.method === 'GET' && p === '/api/library') return json(res, 200, { tracks: demos });
       const recommendation=/^\/api\/recommendations\/([\w-]{11})$/.exec(p);
       if(req.method==='GET'&&recommendation){

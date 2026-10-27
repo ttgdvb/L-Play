@@ -8,7 +8,7 @@ Kho Vercel Blob phải là **private** và kết nối với cùng dự án. Ver
 
 ## Luồng phát
 
-1. `/api/search` và `/api/recommendations/:id` chạy yt-dlp để tìm metadata từ YouTube. Không trả dữ liệu mẫu thay cho kết quả thật.
+1. `/api/search` và `/api/recommendations/:id` chạy yt-dlp để tìm metadata từ YouTube. Tìm kiếm chỉ cần công cụ nguồn Python/yt-dlp; không bị chặn bởi việc thiếu FFmpeg hoặc kho MP3. `/api/health` báo `searchReady` riêng với `toolsReady`. Không trả dữ liệu mẫu thay cho kết quả thật. Giao diện trực tuyến tải gợi ý tìm kiếm thật ở trang chủ; các bài mẫu chỉ còn trong thư viện thử của bản local/LAN.
 2. `/api/prepare` kiểm tra MP3 đã lưu. Nếu có, trả URL phát ngay; các phiên container khác nhau dùng cùng kho.
 3. Nếu chưa có, cùng yêu cầu HTTP tải đúng định dạng `bestaudio[vcodec=none]` và chuyển sang MP3 128 kbps. Máy chủ gửi các bản ghi tiến độ NDJSON trong khi làm việc; không phụ thuộc tác vụ nền tồn tại sau HTTP.
 4. Tệp hoàn chỉnh được lưu trong kho riêng tư. Máy chủ ký đường GET cho đúng tệp, hết hạn sau 4 giờ; trình duyệt tải MP3 trực tiếp và có thể dùng Range để tua. Không truyền khóa đọc/ghi của kho cho trình duyệt.

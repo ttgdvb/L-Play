@@ -5,7 +5,7 @@ COPY requirements-audio.txt ./
 RUN python3 -m venv /opt/audio && /opt/audio/bin/pip install --no-cache-dir -r requirements-audio.txt
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.mjs cloud-audio.mjs stream-growing.mjs ./
+COPY server.mjs cloud-audio.mjs remote-backend.mjs stream-growing.mjs ./
 COPY dist ./dist
 ENV NODE_ENV=production LA_CONTAINER=1 LA_CLOUD_AUDIO=1 LA_PYTHON=/opt/audio/bin/python LA_FFMPEG=/usr/bin/ffmpeg PORT=80
 EXPOSE 80
