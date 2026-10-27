@@ -7,10 +7,13 @@ import { spawn } from 'node:child_process';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { isIPv4 } from 'node:net';
 import { serveGrowingMP3 } from './stream-growing.mjs';
+import { createCloudAudio } from './cloud-audio.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, 'dist');
 const IS_VERCEL = process.env.VERCEL === '1';
+const IS_DEPLOYED = IS_VERCEL || process.env.LA_CONTAINER === '1';
+const CLOUD_AUDIO = IS_VERCEL || process.env.LA_CLOUD_AUDIO === '1';
 const CACHE = IS_VERCEL ? path.join(tmpdir(), 'la-play', 'audio') : path.join(ROOT, '.cache', 'audio');
 const ID = /^[a-zA-Z0-9_-]{11}$/;
 const jobs = new Map(), metadata = new Map(), searches = new Map(), running = new Set();
@@ -20,8 +23,9 @@ const MAX_CACHE = 256 * 1024 * 1024, TTL = 60 * 60 * 1000;
 let active = 0;
 let config = {};
 try { config = JSON.parse(readFileSync(path.join(ROOT, '.runtime', 'config.json'), 'utf8').replace(/^\uFEFF/, '')); } catch {}
-// The local job queue and growing files cannot be shared across Function instances.
-const toolReady = () => !IS_VERCEL && !!config.python && !!config.ffmpeg && existsSync(config.ffmpeg);
+config = { ...config, python: process.env.LA_PYTHON || config.python, pythonPath: process.env.LA_PYTHONPATH || config.pythonPath, ffmpeg: process.env.LA_FFMPEG || config.ffmpeg };
+const cloudAudio = createCloudAudio(config);
+const toolReady = () => !!config.python && !!config.ffmpeg && existsSync(config.ffmpeg);
 const env = () => ({ ...process.env, PYTHONPATH: config.pythonPath || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' });
 const baseArgs = () => ['-m', 'yt_dlp', '--ignore-config', '--no-plugin-dirs', '--no-remote-components', '--no-cache-dir', '--no-warnings', '--socket-timeout', '12', '--retries', '1', '--extractor-retries', '1', '--js-runtimes', `node:${process.execPath}`];
 const sourceURL = id => `https://www.youtube.com/watch?v=${id}`;
@@ -72,7 +76,6 @@ async function body(req) {
 }
 
 function requireTools() {
-  if (IS_VERCEL) throw error('Chưa kết nối nguồn âm thanh trực tuyến. Bạn vẫn có thể nghe các bài mẫu.', 503, 'AUDIO_BACKEND_REQUIRED');
   if (!toolReady()) throw error('Cần chạy bước thiết lập âm thanh trước. Các bài nghe mẫu vẫn dùng được.', 503, 'SETUP_REQUIRED');
 }
 
@@ -225,7 +228,7 @@ export function isAllowedClient(remote, lanAddress, prefix = 24) {
 }
 
 export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } = {}) {
-  if (vercel && !IS_VERCEL) throw new Error('Vercel mode requires the Vercel runtime.');
+  if (vercel && !IS_DEPLOYED) throw new Error('Vercel mode requires the deployment runtime.');
   if (lanAddress && !privateIPv4(lanAddress)) throw new Error('LAN address must be a private IPv4 address.');
   const allowedHosts = new Set(['127.0.0.1', 'localhost', ...(lanAddress ? [lanAddress] : [])]);
   const publicHosts = new Set((process.env.LA_PUBLIC_HOSTS || '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean));
@@ -239,7 +242,7 @@ export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } 
       } else if (!allowedHosts.has(hostname) || !isAllowedClient(req.socket.remoteAddress, lanAddress, lanPrefix)) throw error('Bản thử chỉ phục vụ trên máy này hoặc mạng LAN đã chọn.', 403, 'LOCAL_ONLY');
       if (req.headers.origin && req.headers.origin !== `${vercel ? 'https' : 'http'}://${host}`) throw error('Yêu cầu không cùng nguồn.', 403, 'ORIGIN_REJECTED');
       const url = new URL(req.url, `http://${host}`), p = url.pathname;
-      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: toolReady(), audioOnly: true, format: 'mp3', localOnly: !vercel && !lanAddress, lanEnabled: !!lanAddress, deployment: vercel ? 'vercel' : 'local' });
+      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: CLOUD_AUDIO ? cloudAudio.ready() : toolReady(), searchReady: toolReady(), audioOnly: true, format: 'mp3', localOnly: !vercel && !lanAddress, lanEnabled: !!lanAddress, deployment: vercel ? 'vercel' : 'local', playback: CLOUD_AUDIO ? 'shared-mp3' : 'local-progressive' });
       if (req.method === 'GET' && p === '/api/library') return json(res, 200, { tracks: demos });
       const recommendation=/^\/api\/recommendations\/([\w-]{11})$/.exec(p);
       if(req.method==='GET'&&recommendation){
@@ -268,7 +271,31 @@ export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } 
         const demo = demos.find(t => t.id === id);
         if (demo) return json(res, 200, { id, state: 'ready', track: demo, url: `/audio/${id}.mp3`, seekable:true });
         if (!ID.test(id || '')) throw error('Mã nội dung không hợp lệ.', 400, 'INVALID_INPUT');
-        if (IS_VERCEL) requireTools();
+        if (CLOUD_AUDIO) {
+          const controller = new AbortController();
+          const abort = () => { if (!res.writableEnded) controller.abort(error('Đã hủy mở bài.', 499, 'ABORTED')); };
+          res.once('close', abort);
+          const streamingJSON = req.headers.accept?.includes('application/x-ndjson');
+          const event = value => { if (!res.destroyed) res.write(JSON.stringify(value) + '\n'); };
+          if (streamingJSON) {
+            res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Accel-Buffering': 'no' });
+            res.flushHeaders();
+          }
+          try {
+            const ready = await cloudAudio.prepare(id, { signal: controller.signal, onProgress: message => { if (streamingJSON) event({ type: 'progress', message }); } });
+            if (ready.track) metadata.set(id, ready.track);
+            if (!res.destroyed) {
+              if (streamingJSON) { event({ type: 'ready', ...ready }); res.end(); }
+              else json(res, 200, ready);
+            }
+          } catch (e) {
+            if (!res.destroyed) {
+              if (streamingJSON) { event({ type: 'error', error: e.status ? e.message : 'Chưa mở được âm thanh. Hãy thử lại.', code: e.code || 'AUDIO_ERROR' }); res.end(); }
+              else throw e;
+            }
+          } finally { res.off('close', abort); }
+          return;
+        }
         if (existsSync(path.join(CACHE, `${id}.mp3`))) {
           let track = metadata.get(id);
           if (!track) try { track = JSON.parse(readFileSync(path.join(CACHE, `${id}.json`), 'utf8')); } catch {}
@@ -303,10 +330,10 @@ export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } 
 
 // Vercel imports this entrypoint; it does not run the local command below.
 // Export an unbound server, with no cache writes, timers or child processes on import.
-export default createApp({ vercel: IS_VERCEL });
+export default createApp({ vercel: IS_DEPLOYED });
 
-if (!IS_VERCEL && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await cleanup();
+if ((!IS_VERCEL || process.env.LA_CONTAINER === '1') && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (!CLOUD_AUDIO) await cleanup();
   let lanAddress = null, lanPrefix = 24;
   if (process.env.LA_LAN === '1') {
     const lan = JSON.parse(readFileSync(path.join(ROOT, '.runtime', 'lan.json'), 'utf8').replace(/^\uFEFF/, ''));
@@ -314,10 +341,10 @@ if (!IS_VERCEL && process.argv[1] && path.resolve(process.argv[1]) === fileURLTo
     if (!connected || !privateIPv4(lan.address) || !Number.isInteger(lan.prefixLength) || lan.prefixLength < 8 || lan.prefixLength > 32) throw new Error('Địa chỉ LAN đã đổi. Hãy chạy lại start-lan.cmd.');
     lanAddress = lan.address; lanPrefix = lan.prefixLength;
   }
-  const app = createApp({ lanAddress, lanPrefix }), port = Number(process.env.PORT || 4217);
-  app.listen(port, lanAddress ? '0.0.0.0' : '127.0.0.1', () => console.log(`Lá Play: http://127.0.0.1:${port}${lanAddress ? `\nĐiện thoại cùng Wi-Fi: http://${lanAddress}:${port}` : '\nChỉ chạy trên máy này.'}\nDừng bằng stop.cmd hoặc Ctrl+C.`));
+  const app = createApp({ lanAddress, lanPrefix, vercel: IS_DEPLOYED }), port = Number(process.env.PORT || 4217);
+  app.listen(port, lanAddress || process.env.LA_CONTAINER === '1' ? '0.0.0.0' : '127.0.0.1', () => console.log(CLOUD_AUDIO ? `Lá Play cloud: port ${port}` : `Lá Play: http://127.0.0.1:${port}${lanAddress ? `\nĐiện thoại cùng Wi-Fi: http://${lanAddress}:${port}` : '\nChỉ chạy trên máy này.'}\nDừng bằng stop.cmd hoặc Ctrl+C.`));
   app.on('error', e => { console.error(e.code === 'EADDRINUSE' ? 'Cổng đang được dùng. Chọn PORT khác hoặc tắt phiên cũ.' : e.message); process.exitCode = 1; });
-  const timer = setInterval(() => cleanup().catch(console.error), 600000); timer.unref();
+  const timer = !CLOUD_AUDIO ? setInterval(() => cleanup().catch(console.error), 600000) : null; timer?.unref();
   const stop = () => { clearInterval(timer); for (const child of running) child.kill(); app.close(); process.exit(0); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
 }

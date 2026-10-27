@@ -36,7 +36,7 @@ test('Vercel entrypoint imports with filesystem writes forbidden', () => {
 });
 
 test('deployment serves HTML and all shell assets from the exported server', async () => {
-  for (const path of ['/', '/app.js', '/app.css', '/playback-order.js', '/sw.js', '/icon.svg', '/manifest.webmanifest']) {
+  for (const path of ['/', '/app.js', '/app.css', '/playback-order.js', '/prepare-audio.js', '/sw.js', '/icon.svg', '/manifest.webmanifest']) {
     const res = await request(path); assert.equal(res.status, 200, path); assert.ok(res.body.length > 0, path);
   }
   const health = await request('/api/health'); assert.equal(health.status, 200);
@@ -52,13 +52,13 @@ test('HTTPS same-origin demo playback supports MP3 range requests', async () => 
   assert.equal(audio.status, 206); assert.equal(audio.headers['content-type'], 'audio/mpeg'); assert.equal(audio.body.length, 128);
 });
 
-test('unconfigured online audio returns a useful 503 instead of starting a local-only job', async () => {
+test('missing server tooling is reported instead of starting a local-only job', async () => {
   for (const [path, options] of [
     ['/api/search?q=music', {}],
     ['/api/prepare', { method: 'POST', data: { id: 'BBBBBBBBBBB' } }],
     ['/api/recommendations/BBBBBBBBBBB?title=music', {}],
   ]) {
-    const res = await request(path, options); assert.equal(res.status, 503); assert.equal(JSON.parse(res.body).code, 'AUDIO_BACKEND_REQUIRED');
+    const res = await request(path, options); assert.equal(res.status, 503); assert.ok(['SETUP_REQUIRED', 'STORAGE_REQUIRED'].includes(JSON.parse(res.body).code));
   }
 });
 

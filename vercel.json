@@ -1,11 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "node",
-  "functions": {
-    "server.mjs": {
-      "includeFiles": "dist/**",
-      "excludeFiles": "{.runtime/**,.cache/**,tests/**}",
-      "maxDuration": 30
-    }
-  }
+  "framework": "container",
+  "fluid": true
 }

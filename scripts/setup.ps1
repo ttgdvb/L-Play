@@ -1,6 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
+& npm.cmd ci --omit=dev
+if ($LASTEXITCODE -ne 0) { throw 'Could not install application dependencies.' }
 $pythonCandidates = @(
   (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'),
   (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),

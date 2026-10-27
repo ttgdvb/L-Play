@@ -1,6 +1,10 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
+if (-not (Test-Path -LiteralPath 'node_modules\@vercel\blob\package.json')) {
+  & npm.cmd ci --omit=dev
+  if ($LASTEXITCODE -ne 0) { throw 'Could not install application dependencies.' }
+}
 function Test-PrivateIPv4([string] $address) {
   $parts = $address.Split('.')
   return $parts.Count -eq 4 -and ($parts[0] -eq '10' -or ($parts[0] -eq '192' -and $parts[1] -eq '168') -or ($parts[0] -eq '172' -and [int]$parts[1] -ge 16 -and [int]$parts[1] -le 31))

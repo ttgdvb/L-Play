@@ -1,6 +1,6 @@
 # Lá Play — bản thử trên máy cá nhân
 
-**Triển khai Vercel:** xem [VERCEL.md](VERCEL.md). Bản sửa khởi động phục vụ giao diện và các bài mẫu trên Vercel; phát/tìm kiếm YouTube cần backend âm thanh riêng hoặc thiết kế lưu trạng thái dùng chung. Không đưa nguyên môi trường Windows `.runtime` lên Vercel.
+**Backend trực tuyến:** xem [VERCEL.md](VERCEL.md). Nhánh này bổ sung container có Python/yt-dlp/FFmpeg và kho MP3 riêng tư dùng chung trên Vercel. Tác vụ tải/chuyển đổi hoàn tất trong cùng yêu cầu; trình duyệt nhận tiến độ rồi phát tệp hoàn chỉnh qua URL có thời hạn. Cần kiểm tra Preview với nguồn thật trước khi đưa lên website chính. Không đưa môi trường Windows `.runtime` lên Vercel.
 
 Website nghe âm thanh với giao diện tiếng Việt. Chỉ dùng `<audio>`; không có video iframe. Có ảnh bìa YouTube trong kết quả, hàng đợi, bài đã lưu và thanh đang phát; ảnh được tải khi cần, có giao diện dự phòng nếu ảnh lỗi. MP3 được mã hóa ở 128 kbps. Mã giao diện được viết mới, không sao chép GreenTube.
 

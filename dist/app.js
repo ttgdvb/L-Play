@@ -1,4 +1,5 @@
 import { PlaybackOrder } from './playback-order.js';
+import { readPreparedAudio } from './prepare-audio.js';
 const $ = s => document.querySelector(s);
 const icon = name => `<svg aria-hidden="true"><use href="#${name}"/></svg>`;
 const esc = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8,6 +9,7 @@ const audio = $('#audio');
 let catalog = [], results = [], queue = read('queue', []), saved = read('saved', []), recent = read('history', []), positions = read('positions', {});
 let current = null, view = 'home', category = 'all', preparing = false, token = 0, searchToken = 0, sleepAt = 0, sleepTimer, toastTimer, lastSaved = 0, loadedId = null;
 let streamingSource = false, cacheReady = true;
+let prepareController;
 const order = new PlaybackOrder();
 let recommendations = [], recommendationFor = '', recommendationState = 'idle', recommendationPromise = null, recommendationToken = 0;
 let autoplaySuggestions = !!read('autoplaySuggestions',true);
@@ -73,9 +75,11 @@ async function play(track,{keepOrder=false,fromStart=false,list=null,origin='lis
   if (!track) return;
   if(!keepOrder)order.start(track,list||visibleTracks(),origin);
   resetRecommendations(track.id);
+  prepareController?.abort(); prepareController = new AbortController();
   savePosition(); const myToken = ++token; preparing = true; cacheReady = false; streamingSource = false; audio.pause(); audio.removeAttribute('src'); audio.load(); loadedId = null; setCurrent(track); $('#seek').disabled = true; $('#elapsed').textContent = '0:00'; $('#seek').value = 0; $('#seek').style.setProperty('--progress','0%'); $('#playStatus').textContent = 'Đang mở âm thanh…'; updateTransport();
   try {
-    let job = await api('/api/prepare', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:track.id})});
+    const response = await fetch('/api/prepare', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' }, body: JSON.stringify({ id: track.id }), signal: prepareController.signal });
+    let job = await readPreparedAudio(response, message => { if (myToken === token) $('#playStatus').textContent = message; });
     const previous = positions[track.id]?.position || 0;
     const resume = !fromStart && previous > 5 && previous < (track.duration || Infinity)-4 ? previous : 0;
     const deadline = Date.now() + 230000;
@@ -161,5 +165,5 @@ if('mediaSession'in navigator){for(const [name,fn]of Object.entries({play:()=>{i
 function stopSleep(){audio.pause();sleepAt=0;clearInterval(sleepTimer);$('#sleepLabel').textContent='';$('#sleepButton').classList.remove('on');toast('Đã dừng theo hẹn giờ.');}
 $('#sleepButton').onclick=()=>$('#sleepDialog').showModal();$('#sleepDialog').addEventListener('close',()=>{const value=$('#sleepDialog').returnValue;if(!['0','15','30','60'].includes(value))return;clearInterval(sleepTimer);const minutes=Number(value);sleepAt=minutes?Date.now()+minutes*60000:0;$('#sleepButton').classList.toggle('on',!!minutes);const tick=()=>{if(sleepAt&&Date.now()>=sleepAt)return stopSleep();$('#sleepLabel').textContent=sleepAt?Math.ceil((sleepAt-Date.now())/60000)+'p':'';};tick();if(minutes)sleepTimer=setInterval(tick,1000);toast(minutes?`Sẽ dừng sau ${minutes} phút`:'Đã tắt hẹn giờ');});
 document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,button')||$('#sleepDialog').open)return;if(e.code==='Space'){e.preventDefault();togglePlay();}if(e.code==='ArrowRight'&&loadedId)seekTo(audio.currentTime+10);if(e.code==='ArrowLeft'&&loadedId)seekTo(audio.currentTime-10);});
-async function boot(){try{const data=await api('/api/library');catalog=data.tracks;render();const health=await api('/api/health');$('#connectionLabel').textContent=health.deployment==='vercel'?'Trực tuyến · Bài mẫu':health.lanEnabled?'Mạng LAN · MP3':'Trên máy bạn';if(!health.toolsReady){const message=health.deployment==='vercel'?'Chưa kết nối nguồn âm thanh trực tuyến. Bạn vẫn có thể nghe các bài mẫu.':'Chưa thiết lập nguồn YouTube. Bạn vẫn nghe được các bài mẫu.';setMessage(message);toast(message);}}catch(e){setMessage('Chưa kết nối được ứng dụng. Hãy tải lại trang sau một chút.',true);}}
+async function boot(){try{const data=await api('/api/library');catalog=data.tracks;render();const health=await api('/api/health');$('#connectionLabel').textContent=health.deployment==='vercel'?'Trực tuyến · MP3':health.lanEnabled?'Mạng LAN · MP3':'Trên máy bạn';if(!health.toolsReady){const message=health.searchReady?'Tìm kiếm đã sẵn sàng. Máy chủ đang chờ kết nối kho âm thanh.':'Máy chủ chưa thiết lập xong nguồn âm thanh. Bạn vẫn nghe được các bài mẫu.';setMessage(message);toast(message);}}catch(e){setMessage('Chưa kết nối được ứng dụng. Hãy tải lại trang sau một chút.',true);}}
 boot();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
