@@ -4,12 +4,11 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { mkdtemp, writeFile, appendFile, rename, unlink, rmdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import { serveGrowingMP3 } from '../stream-growing.mjs';
 
 test('serves audio before encoding completes, survives rename and returns every byte',async()=>{
-  const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-  const directory = await mkdtemp(path.join(root,'.runtime','stream-test-'));
+  const directory = await mkdtemp(path.join(tmpdir(),'la-play-stream-test-'));
   const job = {state:'streaming',partialPath:path.join(directory,'audio.part'),finalPath:path.join(directory,'audio.mp3')};
   const first = Buffer.alloc(12000,1), last = Buffer.alloc(9000,2);
   await writeFile(job.partialPath,first);

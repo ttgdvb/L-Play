@@ -1,4 +1,4 @@
-const CACHE='la-play-shell-v4';
+const CACHE='la-play-shell-v5';
 const SHELL=['/','/app.css','/app.js','/playback-order.js','/icon.svg','/manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('la-play-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
