@@ -1,0 +1,6 @@
+.runtime/
+.cache/
+.vercel/
+node_modules/
+*.log
+.env*
