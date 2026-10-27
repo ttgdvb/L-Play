@@ -37,6 +37,6 @@ Pipeline hiện dùng Python + yt-dlp + FFmpeg, `Map` giữ trạng thái tác v
 
 Đã chạy `npm test`: **22/22 test đạt** trên Node.js 24.18.0 tại máy. Test Vercel import entrypoint khi bị cấm ghi file, kiểm tra server export, tài nguyên giao diện, Origin HTTPS, MP3 Range 206, API 503 rõ ràng và giới hạn localhost/LAN. Kiểm tra tại máy không chứng minh bundle trên Vercel đã chạy; cần kiểm tra Preview sau khi build.
 
-Chưa kiểm tra Preview Deployment trên Vercel. Cần kiểm tra bản triển khai thực tế trước khi đưa bản sửa lên production.
+Đã kiểm tra Preview Deployment `laplay-4jn0yieeh-ttvb.vercel.app` của commit `6bb8291`: trang chủ, `/api/health`, `/app.js` và MP3 mẫu đều trả HTTP 200. MP3 mẫu trả `Content-Type: audio/mpeg`, kích thước 513.296 byte. Tìm kiếm trả 503 `AUDIO_BACKEND_REQUIRED` đúng phạm vi bản sửa. Chưa kiểm tra thao tác phát/tua trong trình duyệt trên bản Preview hoặc khóa màn hình điện thoại; các thao tác này cần kiểm tra trước khi đưa lên production.
 
 Tài liệu: https://vercel.com/docs/functions/runtimes/node-js và https://vercel.com/docs/functions/runtimes.

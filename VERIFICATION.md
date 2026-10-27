@@ -4,7 +4,8 @@
 - Vercel Runtime Logs đã xác nhận nguyên nhân 500 là thiếu default export hợp lệ trong `server.mjs`; build gốc đã thành công.
 - `npm test`: 22/22 đạt tại máy (16 kiểm tra hiện có và 6 kiểm tra Vercel mới).
 - Kiểm tra mới bao gồm import với quyền ghi file bị cấm, tài nguyên giao diện, HTTPS cùng nguồn, MP3 mẫu Range 206, phản hồi 503 cho nguồn trực tuyến chưa cấu hình và giữ giới hạn localhost/LAN.
-- Chưa kiểm tra bundle/Preview Deployment trên Vercel. Cần kiểm tra bản triển khai thực tế trước khi đưa bản sửa lên production. Xem `VERCEL.md` trước khi áp dụng.
+- Preview Deployment `laplay-4jn0yieeh-ttvb.vercel.app` của commit `6bb8291` đã build thành công. Trang chủ, `/api/health`, `/app.js` và MP3 mẫu trả HTTP 200; MP3 trả `audio/mpeg`, 513.296 byte. Health trả `deployment: vercel`, `toolsReady: false`, `localOnly: false`. Tìm kiếm trả 503 `AUDIO_BACKEND_REQUIRED` đúng phạm vi.
+- Chưa kiểm tra thao tác phát/tua bằng trình duyệt trên Preview hoặc khóa màn hình điện thoại. Production chưa đổi; xem `VERCEL.md` trước khi áp dụng.
 
 ---
 
