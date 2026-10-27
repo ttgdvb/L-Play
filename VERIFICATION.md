@@ -1,3 +1,13 @@
+# Kiểm tra bản sửa Vercel — 27/10/2026
+
+- Nguồn kiểm tra: bản riêng từ GitHub commit `0cdb080432f1bcc5882d3c3412fda68f47b7a740` và bản vá khởi động.
+- Vercel Runtime Logs đã xác nhận nguyên nhân 500 là thiếu default export hợp lệ trong `server.mjs`; build gốc đã thành công.
+- `npm test`: 22/22 đạt tại máy (16 kiểm tra hiện có và 6 kiểm tra Vercel mới).
+- Kiểm tra mới bao gồm import với quyền ghi file bị cấm, tài nguyên giao diện, HTTPS cùng nguồn, MP3 mẫu Range 206, phản hồi 503 cho nguồn trực tuyến chưa cấu hình và giữ giới hạn localhost/LAN.
+- Chưa kiểm tra bundle/Preview Deployment trên Vercel. Cần kiểm tra bản triển khai thực tế trước khi đưa bản sửa lên production. Xem `VERCEL.md` trước khi áp dụng.
+
+---
+
 # Kết quả kiểm tra ngày 27/10/2026
 
 - Trang chạy trên `http://127.0.0.1:4217` trả HTTP 200.

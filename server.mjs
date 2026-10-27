@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { mkdir, stat, readdir, unlink, rename, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { networkInterfaces } from 'node:os';
+import { networkInterfaces, tmpdir } from 'node:os';
 import { isIPv4 } from 'node:net';
 import { serveGrowingMP3 } from './stream-growing.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, 'dist');
-const CACHE = path.join(ROOT, '.cache', 'audio');
+const IS_VERCEL = process.env.VERCEL === '1';
+const CACHE = IS_VERCEL ? path.join(tmpdir(), 'la-play', 'audio') : path.join(ROOT, '.cache', 'audio');
 const ID = /^[a-zA-Z0-9_-]{11}$/;
 const jobs = new Map(), metadata = new Map(), searches = new Map(), running = new Set();
 const sourceRequests = new Map();
@@ -19,7 +20,8 @@ const MAX_CACHE = 256 * 1024 * 1024, TTL = 60 * 60 * 1000;
 let active = 0;
 let config = {};
 try { config = JSON.parse(readFileSync(path.join(ROOT, '.runtime', 'config.json'), 'utf8').replace(/^\uFEFF/, '')); } catch {}
-const toolReady = () => !!config.python && !!config.ffmpeg && existsSync(config.ffmpeg);
+// The local job queue and growing files cannot be shared across Function instances.
+const toolReady = () => !IS_VERCEL && !!config.python && !!config.ffmpeg && existsSync(config.ffmpeg);
 const env = () => ({ ...process.env, PYTHONPATH: config.pythonPath || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' });
 const baseArgs = () => ['-m', 'yt_dlp', '--ignore-config', '--no-plugin-dirs', '--no-remote-components', '--no-cache-dir', '--no-warnings', '--socket-timeout', '12', '--retries', '1', '--extractor-retries', '1', '--js-runtimes', `node:${process.execPath}`];
 const sourceURL = id => `https://www.youtube.com/watch?v=${id}`;
@@ -69,7 +71,10 @@ async function body(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw error('Dữ liệu gửi lên chưa hợp lệ.', 400, 'INVALID_INPUT'); }
 }
 
-function requireTools() { if (!toolReady()) throw error('Cần chạy bước thiết lập âm thanh trước. Các bài nghe mẫu vẫn dùng được.', 503, 'SETUP_REQUIRED'); }
+function requireTools() {
+  if (IS_VERCEL) throw error('Chưa kết nối nguồn âm thanh trực tuyến. Bạn vẫn có thể nghe các bài mẫu.', 503, 'AUDIO_BACKEND_REQUIRED');
+  if (!toolReady()) throw error('Cần chạy bước thiết lập âm thanh trước. Các bài nghe mẫu vẫn dùng được.', 503, 'SETUP_REQUIRED');
+}
 
 function runJSON(args, timeout = 45000) {
   requireTools();
@@ -219,18 +224,22 @@ export function isAllowedClient(remote, lanAddress, prefix = 24) {
   return (ipv4Number(address) & mask) === (ipv4Number(lanAddress) & mask);
 }
 
-export function createApp({ lanAddress = null, lanPrefix = 24 } = {}) {
+export function createApp({ lanAddress = null, lanPrefix = 24, vercel = false } = {}) {
+  if (vercel && !IS_VERCEL) throw new Error('Vercel mode requires the Vercel runtime.');
   if (lanAddress && !privateIPv4(lanAddress)) throw new Error('LAN address must be a private IPv4 address.');
   const allowedHosts = new Set(['127.0.0.1', 'localhost', ...(lanAddress ? [lanAddress] : [])]);
+  const publicHosts = new Set((process.env.LA_PUBLIC_HOSTS || '').split(',').map(host => host.trim().toLowerCase()).filter(Boolean));
   return http.createServer(async (req, res) => {
     try {
       const host = req.headers.host || '';
       let hostname;
       try { hostname = new URL(`http://${host}`).hostname; } catch {}
-      if (!allowedHosts.has(hostname) || !isAllowedClient(req.socket.remoteAddress, lanAddress, lanPrefix)) throw error('Bản thử chỉ phục vụ trên máy này hoặc mạng LAN đã chọn.', 403, 'LOCAL_ONLY');
-      if (req.headers.origin && req.headers.origin !== `http://${host}`) throw error('Yêu cầu không cùng nguồn.', 403, 'ORIGIN_REJECTED');
+      if (vercel) {
+        if (!hostname || !(/^[a-z0-9-]+\.vercel\.app$/i.test(hostname) || publicHosts.has(hostname))) throw error('Tên miền chưa được cấu hình.', 403, 'HOST_REJECTED');
+      } else if (!allowedHosts.has(hostname) || !isAllowedClient(req.socket.remoteAddress, lanAddress, lanPrefix)) throw error('Bản thử chỉ phục vụ trên máy này hoặc mạng LAN đã chọn.', 403, 'LOCAL_ONLY');
+      if (req.headers.origin && req.headers.origin !== `${vercel ? 'https' : 'http'}://${host}`) throw error('Yêu cầu không cùng nguồn.', 403, 'ORIGIN_REJECTED');
       const url = new URL(req.url, `http://${host}`), p = url.pathname;
-      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: toolReady(), audioOnly: true, format: 'mp3', localOnly: !lanAddress, lanEnabled: !!lanAddress });
+      if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, toolsReady: toolReady(), audioOnly: true, format: 'mp3', localOnly: !vercel && !lanAddress, lanEnabled: !!lanAddress, deployment: vercel ? 'vercel' : 'local' });
       if (req.method === 'GET' && p === '/api/library') return json(res, 200, { tracks: demos });
       const recommendation=/^\/api\/recommendations\/([\w-]{11})$/.exec(p);
       if(req.method==='GET'&&recommendation){
@@ -259,12 +268,13 @@ export function createApp({ lanAddress = null, lanPrefix = 24 } = {}) {
         const demo = demos.find(t => t.id === id);
         if (demo) return json(res, 200, { id, state: 'ready', track: demo, url: `/audio/${id}.mp3`, seekable:true });
         if (!ID.test(id || '')) throw error('Mã nội dung không hợp lệ.', 400, 'INVALID_INPUT');
-        requireTools();
+        if (IS_VERCEL) requireTools();
         if (existsSync(path.join(CACHE, `${id}.mp3`))) {
           let track = metadata.get(id);
           if (!track) try { track = JSON.parse(readFileSync(path.join(CACHE, `${id}.json`), 'utf8')); } catch {}
           return json(res, 200, { id, state:'ready', track, url:`/api/audio/${id}.mp3`, seekable:true, firstAudioMs:0 });
         }
+        requireTools();
         let job = jobs.get(id);
         if (!job || job.state === 'error' || job.state === 'ready') {
           if ([...jobs.values()].filter(isWorking).length >= 5) throw error('Hàng chuẩn bị đang đầy. Thử lại sau.', 429, 'BUSY');
@@ -291,7 +301,11 @@ export function createApp({ lanAddress = null, lanPrefix = 24 } = {}) {
   });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Vercel imports this entrypoint; it does not run the local command below.
+// Export an unbound server, with no cache writes, timers or child processes on import.
+export default createApp({ vercel: IS_VERCEL });
+
+if (!IS_VERCEL && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await cleanup();
   let lanAddress = null, lanPrefix = 24;
   if (process.env.LA_LAN === '1') {
